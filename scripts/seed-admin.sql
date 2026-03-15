@@ -1,9 +1,9 @@
--- Insert admin user with bcrypt hashed password for @9010Admin
+-- Insert admin user with bcrypt hashed password
 -- Hash generated with bcrypt cost factor 10
 INSERT INTO users (name, email, password, role)
 VALUES (
-  'Admin',
-  'kryrosmobile@gmail.com',
-  '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZRGdjGj/n3.w8FwFOSH9P3ggqTH.u',
+  'Asaphis',
+  'asaphis.org@gmail.com',
+  '$2a$10$aJrRqMOtKfSjnNBZCnAbIOjUJTGpqvORJUCjiln77yctCVSxw9WSW',
   'admin'
 ) ON CONFLICT (email) DO NOTHING;

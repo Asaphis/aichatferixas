@@ -4,9 +4,9 @@ import bcrypt from 'bcryptjs'
 const sql = neon(process.env.DATABASE_URL)
 
 async function createAdminUser() {
-  const adminEmail = 'kryrosmobile@gmail.com'
-  const adminPassword = '@9010Admin'
-  const adminName = 'Admin'
+  const adminEmail = 'asaphis.org@gmail.com'
+  const adminPassword = 'Asaphis@2025'
+  const adminName = 'Asaphis'
 
   // Check if admin already exists
   const existingUsers = await sql`
@@ -29,7 +29,7 @@ async function createAdminUser() {
 
   console.log('Admin user created successfully')
   console.log('Email:', adminEmail)
-  console.log('Password: @9010Admin')
+  console.log('Password:', adminPassword)
 }
 
 createAdminUser().catch(console.error)
