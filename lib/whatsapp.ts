@@ -154,13 +154,17 @@ async function handleIncomingMessage(msg: any) {
       contactId = contacts[0].id
     }
 
-    // 2. Get or create conversation
+    // 2. Get active company ID
+    const activeCompany = await sql`SELECT id FROM companies WHERE is_active = true LIMIT 1`
+    const companyId = activeCompany.length > 0 ? activeCompany[0].id : null
+
+    // 3. Get or create conversation
     let conversations = await sql`SELECT id, status FROM conversations WHERE contact_id = ${contactId}`
     let conversationId: number
     let status: 'AI' | 'HUMAN'
 
     if (conversations.length === 0) {
-      const newConversation = await sql`INSERT INTO conversations (contact_id, status) VALUES (${contactId}, 'AI') RETURNING id, status`
+      const newConversation = await sql`INSERT INTO conversations (contact_id, company_id, status) VALUES (${contactId}, ${companyId}, 'AI') RETURNING id, status`
       conversationId = newConversation[0].id
       status = 'AI'
     } else {
@@ -275,7 +279,33 @@ async function getAIResponse(userMessage: string, conversationId: number): Promi
 
     if (!aiEnabled) return "AI is currently disabled."
 
-    // 2. Get recent message history for context
+    // 2. Get active company information
+    const companies = await sql`SELECT * FROM companies WHERE is_active = true LIMIT 1`
+    let companyInfo = ''
+    let productsInfo = ''
+
+    if (companies.length > 0) {
+      const company = companies[0]
+      companyInfo = `
+Company Name: ${company.name}
+Company Description: ${company.description || 'N/A'}
+Phone: ${company.phone || 'N/A'}
+Email: ${company.email || 'N/A'}
+Address: ${company.address || 'N/A'}
+Website: ${company.website || 'N/A'}
+`
+
+      // Get products for this company
+      const products = await sql`SELECT name, description, price, category FROM products WHERE company_id = ${company.id}`
+      if (products.length > 0) {
+        productsInfo = '\nOur Products/Services:\n'
+        products.forEach((p: any) => {
+          productsInfo += `- ${p.name}: ${p.description || ''} ${p.price ? `(ZMW ${p.price})` : ''}\n`
+        })
+      }
+    }
+
+    // 3. Get recent message history for context
     const history = await sql`
       SELECT sender, content 
       FROM messages 
@@ -285,14 +315,14 @@ async function getAIResponse(userMessage: string, conversationId: number): Promi
     `
     
     const messages: any[] = [
-      { role: 'system', content: systemPrompt },
+      { role: 'system', content: systemPrompt + companyInfo + productsInfo },
       ...history.reverse().map((m: any) => ({
         role: m.sender === 'customer' ? 'user' : 'assistant',
         content: m.content
       }))
     ]
 
-    // 3. Call OpenAI
+    // 4. Call OpenAI
     const completion = await openai.chat.completions.create({
       model: "gpt-3.5-turbo",
       messages: messages,

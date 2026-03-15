@@ -7,8 +7,8 @@ const _geist = Geist({ subsets: ["latin"] });
 const _geistMono = Geist_Mono({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: 'KRYROS Support Dashboard',
-  description: 'WhatsApp AI Customer Support Dashboard for KRYROS',
+  title: 'AGENT FERIXAS Support Dashboard',
+  description: 'WhatsApp AI Customer Support Dashboard for AGENT FERIXAS',
   generator: 'v0.app',
   icons: {
     icon: [

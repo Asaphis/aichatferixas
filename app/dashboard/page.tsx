@@ -37,7 +37,7 @@ export default async function DashboardPage() {
     <div className="p-6">
       <div className="mb-8">
         <h1 className="text-3xl font-bold">Dashboard</h1>
-        <p className="text-muted-foreground">Welcome to KRYROS Support Dashboard</p>
+        <p className="text-muted-foreground">Welcome to AGENT FERIXAS Support Dashboard</p>
       </div>
 
       <div className="mb-8 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
