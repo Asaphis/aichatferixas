@@ -487,8 +487,9 @@ export default function SettingsPage() {
                     </Button>
                   </div>
                 </DialogContent>
-              </Dialog>
-            </CardHeader>
+                </Dialog>
+                </div>
+              </CardHeader>
             <CardContent>
               {!selectedCompany ? (
                 <p className="text-center text-muted-foreground py-8">
