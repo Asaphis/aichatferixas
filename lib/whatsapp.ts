@@ -397,15 +397,6 @@ Website: ${company.website || 'N/A'}
       fullSystemPrompt += '\n\n' + faqInfo
     }
 
-    // 4. Get recent message history for context
-    const history = await sql`
-      SELECT sender, content 
-      FROM messages 
-      WHERE conversation_id = ${conversationId} 
-      ORDER BY created_at DESC 
-      LIMIT 10
-    `
-    
     // 5. Add company and products info to prompt
     if (companyInfo) {
       fullSystemPrompt += '\n\n' + companyInfo

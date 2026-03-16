@@ -13,7 +13,7 @@ import {
   LogOut,
   ShieldCheck,
   Sparkles,
-} from 'lucide-react' from 'lucide-react'
+} from 'lucide-react'
 
 interface User {
   id: number
