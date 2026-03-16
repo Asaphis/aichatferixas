@@ -11,6 +11,7 @@ import {
   MessageCircle,
   Settings,
   LogOut,
+  ShieldCheck,
 } from 'lucide-react'
 
 interface User {
@@ -25,6 +26,7 @@ const navItems = [
   { href: '/dashboard/inbox', label: 'Inbox', icon: MessageSquare },
   { href: '/dashboard/contacts', label: 'Contacts', icon: Users },
   { href: '/dashboard/whatsapp', label: 'WhatsApp', icon: MessageCircle },
+  { href: '/dashboard/users', label: 'Users', icon: ShieldCheck, roles: ['super_admin'] },
   { href: '/dashboard/settings', label: 'Settings', icon: Settings },
 ]
 
@@ -56,30 +58,40 @@ export function DashboardSidebar({ user }: { user: User }) {
       </div>
 
       <nav className="flex-1 space-y-1 p-4">
-        {navItems.map((item) => {
-          const Icon = item.icon
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={cn(
-                'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
-                isActive(item.href)
-                  ? 'bg-primary text-primary-foreground'
-                  : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-              )}
-            >
-              <Icon className="h-4 w-4" />
-              {item.label}
-            </Link>
-          )
-        })}
+        {navItems
+          .filter((item) => {
+            if (!item.roles) return true
+            return item.roles.includes(user.role)
+          })
+          .map((item) => {
+            const Icon = item.icon
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={cn(
+                  'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+                  isActive(item.href)
+                    ? 'bg-primary text-primary-foreground'
+                    : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                )}
+              >
+                <Icon className="h-4 w-4" />
+                {item.label}
+              </Link>
+            )
+          })}
       </nav>
 
       <div className="border-t p-4">
         <div className="mb-3 px-3">
           <p className="text-sm font-medium">{user.name}</p>
           <p className="text-xs text-muted-foreground">{user.email}</p>
+          <p className="text-xs mt-1">
+            <span className={user.role === 'super_admin' ? 'text-purple-600 font-medium' : ''}>
+              {user.role === 'super_admin' ? 'Super Admin' : user.role === 'admin' ? 'Admin' : 'Agent'}
+            </span>
+          </p>
         </div>
         <Button
           variant="ghost"
