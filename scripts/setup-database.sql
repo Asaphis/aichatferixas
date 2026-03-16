@@ -75,6 +75,11 @@ INSERT INTO settings (key, value) VALUES
   ('ai_enabled', 'true'),
   ('ai_system_prompt', 'You are a helpful customer support assistant.'),
   ('human_takeover_keywords', 'human,agent,support,help,talk to human'),
+  ('ai_greeting_message', 'Hello! How can I help you today?'),
+  ('ai_closing_message', 'Thank you for chatting with us. Have a great day!'),
+  ('ai_language', 'en'),
+  ('ai_response_tone', 'friendly'),
+  ('prohibited_topics', ''),
   ('default_company_id', '')
 ON CONFLICT (key) DO NOTHING;
 
@@ -86,3 +91,21 @@ CREATE INDEX IF NOT EXISTS idx_messages_conversation_id ON messages(conversation
 CREATE INDEX IF NOT EXISTS idx_messages_created_at ON messages(created_at);
 CREATE INDEX IF NOT EXISTS idx_contacts_phone ON contacts(phone);
 CREATE INDEX IF NOT EXISTS idx_products_company_id ON products(company_id);
+
+-- Quick replies table for AI
+CREATE TABLE IF NOT EXISTS quick_replies (
+  id SERIAL PRIMARY KEY,
+  question VARCHAR(255) NOT NULL,
+  answer TEXT NOT NULL,
+  category VARCHAR(100) DEFAULT 'General',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- FAQs table for AI knowledge base
+CREATE TABLE IF NOT EXISTS faqs (
+  id SERIAL PRIMARY KEY,
+  question VARCHAR(255) NOT NULL,
+  answer TEXT NOT NULL,
+  category VARCHAR(100) DEFAULT 'General',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);

@@ -6,6 +6,11 @@ const SETTINGS_KEYS = [
   'ai_enabled',
   'ai_system_prompt',
   'human_takeover_keywords',
+  'ai_greeting_message',
+  'ai_closing_message',
+  'ai_language',
+  'ai_response_tone',
+  'prohibited_topics',
   'company_name',
   'support_phone',
   'support_email',
@@ -23,6 +28,11 @@ export async function GET() {
       ai_enabled: true,
       ai_system_prompt: '',
       human_takeover_keywords: 'human,agent,support,help',
+      ai_greeting_message: 'Hello! How can I help you today?',
+      ai_closing_message: 'Thank you for chatting with us. Have a great day!',
+      ai_language: 'en',
+      ai_response_tone: 'friendly',
+      prohibited_topics: '',
     }
     
     for (const row of rows) {

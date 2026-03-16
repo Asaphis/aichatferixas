@@ -12,7 +12,8 @@ import {
   Settings,
   LogOut,
   ShieldCheck,
-} from 'lucide-react'
+  Sparkles,
+} from 'lucide-react' from 'lucide-react'
 
 interface User {
   id: number
@@ -26,6 +27,7 @@ const navItems = [
   { href: '/dashboard/inbox', label: 'Inbox', icon: MessageSquare },
   { href: '/dashboard/contacts', label: 'Contacts', icon: Users },
   { href: '/dashboard/whatsapp', label: 'WhatsApp', icon: MessageCircle },
+  { href: '/dashboard/ai-config', label: 'AI Config', icon: Sparkles },
   { href: '/dashboard/users', label: 'Users', icon: ShieldCheck, roles: ['super_admin'] },
   { href: '/dashboard/settings', label: 'Settings', icon: Settings },
 ]

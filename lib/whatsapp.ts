@@ -272,12 +272,69 @@ async function loadExistingChats() {
 
 async function getAIResponse(userMessage: string, conversationId: number): Promise<string> {
   try {
-    // 1. Get system prompt and AI enabled status
-    const settings = await sql`SELECT key, value FROM settings WHERE key IN ('ai_enabled', 'ai_system_prompt')`
-    const aiEnabled = settings.find(s => s.key === 'ai_enabled')?.value === 'true'
-    const systemPrompt = settings.find(s => s.key === 'ai_system_prompt')?.value || 'You are a helpful assistant.'
+    // 1. Get all AI settings
+    const settings = await sql`
+      SELECT key, value FROM settings 
+      WHERE key IN (
+        'ai_enabled', 
+        'ai_system_prompt', 
+        'human_takeover_keywords',
+        'ai_greeting_message',
+        'ai_closing_message',
+        'ai_language',
+        'ai_response_tone',
+        'prohibited_topics'
+      )
+    `
+    const settingsObj: Record<string, string> = {}
+    settings.forEach((s: any) => { settingsObj[s.key] = s.value })
+
+    const aiEnabled = settingsObj.ai_enabled === 'true'
+    const systemPrompt = settingsObj.ai_system_prompt || 'You are a helpful assistant.'
+    const humanTakeoverKeywords = settingsObj.human_takeover_keywords?.split(',').map(k => k.trim().toLowerCase()) || []
+    const greetingMessage = settingsObj.ai_greeting_message || 'Hello! How can I help you today?'
+    const closingMessage = settingsObj.ai_closing_message || 'Thank you for chatting with us. Have a great day!'
+    const prohibitedTopics = settingsObj.prohibited_topics || ''
 
     if (!aiEnabled) return "AI is currently disabled."
+
+    // Check if message contains human takeover keywords
+    const lowerMessage = userMessage.toLowerCase()
+    for (const keyword of humanTakeoverKeywords) {
+      if (lowerMessage.includes(keyword)) {
+        return "I'll connect you with a human agent right away. Please wait a moment."
+      }
+    }
+
+    // Check for prohibited topics
+    if (prohibitedTopics) {
+      const prohibitedList = prohibitedTopics.split('\n').map(t => t.trim().toLowerCase()).filter(t => t)
+      for (const topic of prohibitedList) {
+        if (topic && lowerMessage.includes(topic)) {
+          return "I'm sorry, I'm not able to discuss that topic. For assistance, please contact our support team directly. Is there anything else I can help you with?"
+        }
+      }
+    }
+
+    // 2. Get quick replies for matching
+    const quickReplies = await sql`SELECT question, answer FROM quick_replies`
+    let quickReplyInfo = ''
+    if (quickReplies.length > 0) {
+      quickReplyInfo = '\nQuick Reference Answers:\n'
+      quickReplies.forEach((qr: any) => {
+        quickReplyInfo += `Q: ${qr.question}\nA: ${qr.answer}\n`
+      })
+    }
+
+    // 3. Get FAQs for knowledge base
+    const faqs = await sql`SELECT question, answer FROM faqs`
+    let faqInfo = ''
+    if (faqs.length > 0) {
+      faqInfo = '\nFAQ Knowledge Base:\n'
+      faqs.forEach((faq: any) => {
+        faqInfo += `Q: ${faq.question}\nA: ${faq.answer}\n`
+      })
+    }
 
     // 2. Get active company information
     const companies = await sql`SELECT * FROM companies WHERE is_active = true LIMIT 1`
@@ -314,18 +371,62 @@ Website: ${company.website || 'N/A'}
       LIMIT 10
     `
     
-    const messages: any[] = [
-      { role: 'system', content: systemPrompt + companyInfo + productsInfo },
+    // 4. Build system prompt with all context
+    let fullSystemPrompt = systemPrompt
+    
+    // Add response tone if specified
+    if (settingsObj.ai_response_tone) {
+      const toneInstructions: Record<string, string> = {
+        formal: 'Always use formal language and professional tone.',
+        friendly: 'Use friendly and conversational tone.',
+        casual: 'Use casual and relaxed tone.',
+        professional: 'Use professional but approachable tone.'
+      }
+      fullSystemPrompt += '\n\n' + (toneInstructions[settingsObj.ai_response_tone] || '')
+    }
+    
+    // Add greeting and closing instructions
+    fullSystemPrompt += `\n\nWhen greeting new customers, say: "${greetingMessage}"`
+    fullSystemPrompt += `\nWhen ending conversations, say: "${closingMessage}"`
+    
+    // Add quick replies and FAQs to prompt
+    if (quickReplyInfo) {
+      fullSystemPrompt += '\n\n' + quickReplyInfo
+    }
+    if (faqInfo) {
+      fullSystemPrompt += '\n\n' + faqInfo
+    }
+
+    // 4. Get recent message history for context
+    const history = await sql`
+      SELECT sender, content 
+      FROM messages 
+      WHERE conversation_id = ${conversationId} 
+      ORDER BY created_at DESC 
+      LIMIT 10
+    `
+    
+    // 5. Add company and products info to prompt
+    if (companyInfo) {
+      fullSystemPrompt += '\n\n' + companyInfo
+    }
+    if (productsInfo) {
+      fullSystemPrompt += '\n\n' + productsInfo
+    }
+
+    // 6. Build messages array for OpenAI
+    const openaiMessages: any[] = [
+      { role: 'system', content: fullSystemPrompt },
       ...history.reverse().map((m: any) => ({
         role: m.sender === 'customer' ? 'user' : 'assistant',
         content: m.content
       }))
     ]
 
-    // 4. Call OpenAI
+    // 7. Call OpenAI
     const completion = await openai.chat.completions.create({
       model: "gpt-3.5-turbo",
-      messages: messages,
+      messages: openaiMessages,
     })
 
     return completion.choices[0].message.content || "I'm sorry, I couldn't generate a response."
