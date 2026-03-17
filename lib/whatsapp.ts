@@ -24,6 +24,7 @@ const globalForWhatsApp = global as unknown as {
     qrCode: string | null
     phone: string | null
     error: string | null
+    ownerUserId: number | null  // The user who owns this WhatsApp connection
   }
   sock: any
 }
@@ -33,6 +34,7 @@ export const whatsappStatus = globalForWhatsApp.whatsappStatus || {
   qrCode: null,
   phone: null,
   error: null,
+  ownerUserId: null,
 }
 
 if (process.env.NODE_ENV !== 'production') {
@@ -49,7 +51,7 @@ if (!fs.existsSync(AUTH_DIR)) {
 
 export const getWhatsAppStatus = () => whatsappStatus
 
-export const connectToWhatsApp = async () => {
+export const connectToWhatsApp = async (ownerUserId?: number) => {
   if (sock) {
     console.log('Closing existing WhatsApp connection...')
     try {
@@ -61,6 +63,9 @@ export const connectToWhatsApp = async () => {
     sock.ev.removeAllListeners('creds.update')
     sock.ev.removeAllListeners('messages.upsert')
   }
+
+  // Set the owner user ID (default to 1 if not provided)
+  whatsappStatus.ownerUserId = ownerUserId || 1
 
   try {
     const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR)
@@ -146,9 +151,10 @@ async function handleIncomingMessage(msg: any) {
     // 1. Get or create contact
     let contacts = await sql`SELECT id, name FROM contacts WHERE phone = ${phone}`
     let contactId: number
+    const ownerUserId = whatsappStatus.ownerUserId || 1
 
     if (contacts.length === 0) {
-      const newContact = await sql`INSERT INTO contacts (phone, name) VALUES (${phone}, ${msg.pushName || 'WhatsApp User'}) RETURNING id`
+      const newContact = await sql`INSERT INTO contacts (user_id, phone, name) VALUES (${ownerUserId}, ${phone}, ${msg.pushName || 'WhatsApp User'}) RETURNING id`
       contactId = newContact[0].id
     } else {
       contactId = contacts[0].id
@@ -164,7 +170,7 @@ async function handleIncomingMessage(msg: any) {
     let status: 'AI' | 'HUMAN'
 
     if (conversations.length === 0) {
-      const newConversation = await sql`INSERT INTO conversations (contact_id, company_id, status) VALUES (${contactId}, ${companyId}, 'AI') RETURNING id, status`
+      const newConversation = await sql`INSERT INTO conversations (user_id, contact_id, company_id, status) VALUES (${ownerUserId}, ${contactId}, ${companyId}, 'AI') RETURNING id, status`
       conversationId = newConversation[0].id
       status = 'AI'
     } else {
@@ -220,7 +226,7 @@ async function loadExistingChats() {
         let contactId: number
 
         if (contacts.length === 0) {
-          const newContact = await sql`INSERT INTO contacts (phone, name) VALUES (${phone}, ${chat.name || 'WhatsApp User'}) RETURNING id`
+          const newContact = await sql`INSERT INTO contacts (user_id, phone, name) VALUES (${ownerUserId}, ${phone}, ${chat.name || 'WhatsApp User'}) RETURNING id`
           contactId = newContact[0].id
         } else {
           contactId = contacts[0].id
@@ -272,12 +278,16 @@ async function loadExistingChats() {
 
 async function getAIResponse(userMessage: string, conversationId: number): Promise<string> {
   try {
-    // 1. Get all AI settings
+    // Get the owner user ID from whatsapp status
+    const ownerUserId = whatsappStatus.ownerUserId || 1
+    
+    // 1. Get all AI settings for the owner user
     const settings = await sql`
       SELECT key, value FROM settings 
-      WHERE key IN (
-        'ai_enabled', 
-        'ai_system_prompt', 
+      WHERE user_id = ${ownerUserId} AND (
+        key IN ('ai_enabled', 'ai_system_prompt', 'human_takeover_keywords', 'ai_greeting_message', 'ai_closing_message', 'ai_language', 'ai_response_tone', 'prohibited_topics')
+      )
+    ` 
         'human_takeover_keywords',
         'ai_greeting_message',
         'ai_closing_message',

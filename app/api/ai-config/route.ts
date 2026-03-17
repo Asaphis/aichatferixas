@@ -10,10 +10,10 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Get settings
+    // Get user-specific settings
     const settings = await sql`
       SELECT key, value FROM settings 
-      WHERE key LIKE 'ai_%' OR key = 'human_takeover_keywords' OR key = 'prohibited_topics'
+      WHERE user_id = ${session.id} AND (key LIKE 'ai_%' OR key = 'human_takeover_keywords' OR key = 'prohibited_topics')
     `
 
     const settingsObj: Record<string, string> = {}
@@ -21,14 +21,18 @@ export async function GET() {
       settingsObj[row.key] = row.value
     }
 
-    // Get quick replies
+    // Get quick replies for this user
     const quickReplies = await sql`
-      SELECT id, question, answer, category FROM quick_replies ORDER BY category, question
+      SELECT id, question, answer, category FROM quick_replies 
+      WHERE user_id = ${session.id} 
+      ORDER BY category, question
     `
 
-    // Get FAQs
+    // Get FAQs for this user
     const faqs = await sql`
-      SELECT id, question, answer, category FROM faqs ORDER BY category, question
+      SELECT id, question, answer, category FROM faqs 
+      WHERE user_id = ${session.id} 
+      ORDER BY category, question
     `
 
     return NextResponse.json({
@@ -70,41 +74,37 @@ export async function POST(request: Request) {
         if (settings[key] !== undefined) {
           const value = typeof settings[key] === 'boolean' ? String(settings[key]) : settings[key]
           await sql`
-            INSERT INTO settings (key, value, updated_at)
-            VALUES (${key}, ${value}, CURRENT_TIMESTAMP)
-            ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = CURRENT_TIMESTAMP
+            INSERT INTO settings (user_id, key, value, updated_at)
+            VALUES (${session.id}, ${key}, ${value}, CURRENT_TIMESTAMP)
+            ON CONFLICT (user_id, key) DO UPDATE SET value = EXCLUDED.value, updated_at = CURRENT_TIMESTAMP
           `
         }
       }
     }
 
-    // Save quick replies
+    // Save quick replies - delete user's existing and insert new
     if (quickReplies && Array.isArray(quickReplies)) {
-      // Delete existing quick replies
-      await sql`DELETE FROM quick_replies`
+      await sql`DELETE FROM quick_replies WHERE user_id = ${session.id}`
 
-      // Insert new quick replies
       for (const qr of quickReplies) {
         if (qr.question && qr.answer) {
           await sql`
-            INSERT INTO quick_replies (question, answer, category)
-            VALUES (${qr.question}, ${qr.answer}, ${qr.category || 'General'})
+            INSERT INTO quick_replies (user_id, question, answer, category)
+            VALUES (${session.id}, ${qr.question}, ${qr.answer}, ${qr.category || 'General'})
           `
         }
       }
     }
 
-    // Save FAQs
+    // Save FAQs - delete user's existing and insert new
     if (faqs && Array.isArray(faqs)) {
-      // Delete existing FAQs
-      await sql`DELETE FROM faqs`
+      await sql`DELETE FROM faqs WHERE user_id = ${session.id}`
 
-      // Insert new FAQs
       for (const faq of faqs) {
         if (faq.question && faq.answer) {
           await sql`
-            INSERT INTO faqs (question, answer, category)
-            VALUES (${faq.question}, ${faq.answer}, ${faq.category || 'General'})
+            INSERT INTO faqs (user_id, question, answer, category)
+            VALUES (${session.id}, ${faq.question}, ${faq.answer}, ${faq.category || 'General'})
           `
         }
       }

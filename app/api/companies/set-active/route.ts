@@ -1,23 +1,37 @@
 import { NextResponse } from 'next/server'
 import { sql } from '@/lib/db'
+import { getSession } from '@/lib/auth'
 
 export async function POST(request: Request) {
   try {
+    const session = await getSession()
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
     const body = await request.json()
     const { company_id } = body
 
-    // First, deactivate all companies
-    await sql`UPDATE companies SET is_active = false`
-
-    // Then activate the selected company
-    if (company_id) {
-      await sql`UPDATE companies SET is_active = true WHERE id = ${company_id}`
+    // First, deactivate all companies for this user
+    if (session.role === 'super_admin') {
+      await sql`UPDATE companies SET is_active = false`
+    } else {
+      await sql`UPDATE companies SET is_active = false WHERE user_id = ${session.id}`
     }
 
-    // Update the default_company_id setting
+    // Then activate the selected company (if it belongs to this user)
+    if (company_id) {
+      if (session.role === 'super_admin') {
+        await sql`UPDATE companies SET is_active = true WHERE id = ${company_id}`
+      } else {
+        await sql`UPDATE companies SET is_active = true WHERE id = ${company_id} AND user_id = ${session.id}`
+      }
+    }
+
+    // Update the default_company_id setting for this user
     await sql`
-      INSERT INTO settings (key, value) VALUES ('default_company_id', ${company_id || ''})
-      ON CONFLICT (key) DO UPDATE SET value = ${company_id || ''}
+      INSERT INTO settings (user_id, key, value) VALUES (${session.id}, 'default_company_id', ${company_id || ''})
+      ON CONFLICT (user_id, key) DO UPDATE SET value = ${company_id || ''}
     `
 
     return NextResponse.json({ success: true })
@@ -29,8 +43,18 @@ export async function POST(request: Request) {
 
 export async function GET() {
   try {
-    // Get the active company
-    const companies = await sql`SELECT * FROM companies WHERE is_active = true LIMIT 1`
+    const session = await getSession()
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    // Get the active company for this user
+    let companies
+    if (session.role === 'super_admin') {
+      companies = await sql`SELECT * FROM companies WHERE is_active = true LIMIT 1`
+    } else {
+      companies = await sql`SELECT * FROM companies WHERE user_id = ${session.id} AND is_active = true LIMIT 1`
+    }
     
     if (companies.length === 0) {
       return NextResponse.json({ company: null })

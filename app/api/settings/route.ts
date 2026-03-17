@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { sql } from '@/lib/db'
+import { getSession } from '@/lib/auth'
 
 // Settings keys we support
 const SETTINGS_KEYS = [
@@ -14,17 +15,27 @@ const SETTINGS_KEYS = [
   'company_name',
   'support_phone',
   'support_email',
+  'default_company_id',
 ]
 
 export async function GET() {
   try {
-    const rows = await sql`SELECT key, value FROM settings WHERE key = ANY(${SETTINGS_KEYS})`
+    const session = await getSession()
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    // Get user-specific settings, with defaults as fallback
+    const rows = await sql`
+      SELECT key, value FROM settings 
+      WHERE user_id = ${session.id} AND key = ANY(${SETTINGS_KEYS})
+    `
     
-    // Convert key-value rows to object
+    // Convert key-value rows to object with defaults
     const settings: Record<string, string | boolean> = {
-      company_name: 'KRYROS',
-      support_phone: '+260 966 423 719',
-      support_email: 'kryrosmobile@gmail.com',
+      company_name: '',
+      support_phone: '',
+      support_email: '',
       ai_enabled: true,
       ai_system_prompt: '',
       human_takeover_keywords: 'human,agent,support,help',
@@ -33,6 +44,7 @@ export async function GET() {
       ai_language: 'en',
       ai_response_tone: 'friendly',
       prohibited_topics: '',
+      default_company_id: '',
     }
     
     for (const row of rows) {
@@ -52,16 +64,21 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
+    const session = await getSession()
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
     const data = await request.json()
 
-    // Upsert each setting
+    // Upsert each setting for this user
     for (const key of SETTINGS_KEYS) {
       if (data[key] !== undefined) {
         const value = typeof data[key] === 'boolean' ? String(data[key]) : data[key]
         await sql`
-          INSERT INTO settings (key, value, updated_at)
-          VALUES (${key}, ${value}, CURRENT_TIMESTAMP)
-          ON CONFLICT (key) DO UPDATE SET
+          INSERT INTO settings (user_id, key, value, updated_at)
+          VALUES (${session.id}, ${key}, ${value}, CURRENT_TIMESTAMP)
+          ON CONFLICT (user_id, key) DO UPDATE SET
             value = EXCLUDED.value,
             updated_at = CURRENT_TIMESTAMP
         `
