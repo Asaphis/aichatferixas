@@ -1,31 +1,71 @@
 import { sql } from '@/lib/db'
+import { getSession } from '@/lib/auth'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { MessageSquare, Users, Bot, UserCheck } from 'lucide-react'
 
 async function getStats() {
-  const [conversations, contacts, aiConversations, humanConversations] = await Promise.all([
-    sql`SELECT COUNT(*) as count FROM conversations`,
-    sql`SELECT COUNT(*) as count FROM contacts`,
-    sql`SELECT COUNT(*) as count FROM conversations WHERE status = 'AI'`,
-    sql`SELECT COUNT(*) as count FROM conversations WHERE status = 'HUMAN'`,
-  ])
+  const session = await getSession()
+  if (!session) {
+    return {
+      totalConversations: 0,
+      totalContacts: 0,
+      aiHandled: 0,
+      humanHandled: 0,
+    }
+  }
+
+  // Filter by user_id - super_admin sees all, others see their own
+  let result
+  if (session.role === 'super_admin') {
+    result = await Promise.all([
+      sql`SELECT COUNT(*) as count FROM conversations`,
+      sql`SELECT COUNT(*) as count FROM contacts`,
+      sql`SELECT COUNT(*) as count FROM conversations WHERE status = 'AI'`,
+      sql`SELECT COUNT(*) as count FROM conversations WHERE status = 'HUMAN'`,
+    ])
+  } else {
+    result = await Promise.all([
+      sql`SELECT COUNT(*) as count FROM conversations WHERE user_id = ${session.id}`,
+      sql`SELECT COUNT(*) as count FROM contacts WHERE user_id = ${session.id}`,
+      sql`SELECT COUNT(*) as count FROM conversations WHERE user_id = ${session.id} AND status = 'AI'`,
+      sql`SELECT COUNT(*) as count FROM conversations WHERE user_id = ${session.id} AND status = 'HUMAN'`,
+    ])
+  }
 
   return {
-    totalConversations: Number(conversations[0]?.count || 0),
-    totalContacts: Number(contacts[0]?.count || 0),
-    aiHandled: Number(aiConversations[0]?.count || 0),
-    humanHandled: Number(humanConversations[0]?.count || 0),
+    totalConversations: Number(result[0][0]?.count || 0),
+    totalContacts: Number(result[1][0]?.count || 0),
+    aiHandled: Number(result[2][0]?.count || 0),
+    humanHandled: Number(result[3][0]?.count || 0),
   }
 }
 
 async function getRecentConversations() {
-  const conversations = await sql`
-    SELECT c.id, c.status, c.last_message, c.updated_at, ct.name, ct.phone
-    FROM conversations c
-    JOIN contacts ct ON c.contact_id = ct.id
-    ORDER BY c.updated_at DESC
-    LIMIT 5
-  `
+  const session = await getSession()
+  if (!session) {
+    return []
+  }
+
+  // Filter by user_id - super_admin sees all, others see their own
+  let conversations
+  if (session.role === 'super_admin') {
+    conversations = await sql`
+      SELECT c.id, c.status, c.last_message, c.updated_at, ct.name, ct.phone
+      FROM conversations c
+      JOIN contacts ct ON c.contact_id = ct.id
+      ORDER BY c.updated_at DESC
+      LIMIT 5
+    `
+  } else {
+    conversations = await sql`
+      SELECT c.id, c.status, c.last_message, c.updated_at, ct.name, ct.phone
+      FROM conversations c
+      JOIN contacts ct ON c.contact_id = ct.id
+      WHERE c.user_id = ${session.id}
+      ORDER BY c.updated_at DESC
+      LIMIT 5
+    `
+  }
   return conversations
 }
 
