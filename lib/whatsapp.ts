@@ -284,18 +284,9 @@ async function getAIResponse(userMessage: string, conversationId: number): Promi
     // 1. Get all AI settings for the owner user
     const settings = await sql`
       SELECT key, value FROM settings 
-      WHERE user_id = ${ownerUserId} AND (
-        key IN ('ai_enabled', 'ai_system_prompt', 'human_takeover_keywords', 'ai_greeting_message', 'ai_closing_message', 'ai_language', 'ai_response_tone', 'prohibited_topics')
-      )
-    ` 
-        'human_takeover_keywords',
-        'ai_greeting_message',
-        'ai_closing_message',
-        'ai_language',
-        'ai_response_tone',
-        'prohibited_topics'
-      )
+      WHERE user_id = ${ownerUserId} AND key IN ('ai_enabled', 'ai_system_prompt', 'human_takeover_keywords', 'ai_greeting_message', 'ai_closing_message', 'ai_language', 'ai_response_tone', 'prohibited_topics')
     `
+    
     const settingsObj: Record<string, string> = {}
     settings.forEach((s: any) => { settingsObj[s.key] = s.value })
 
